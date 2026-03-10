@@ -43,67 +43,25 @@ export async function GET(request) {
 
 /**
  * Fetch recent federal bills from Congress.gov and upsert into DB.
+ * Uses batch insert — imports list metadata only (no per-bill detail/text calls).
+ * The summarizer can work from titles; detail enrichment can run separately later.
  */
 async function fetchCongressBills() {
   const bills = await fetchRecentBills(250);
   let inserted = 0;
   let skipped = 0;
 
+  // Build rows for batch upsert
+  const rows = [];
   for (const bill of bills) {
     const externalId = `congress:${bill.type?.toLowerCase() || 'bill'}${bill.number}-${bill.congress}`;
-
-    // Check if already exists
-    const { data: existing } = await supabaseAdmin
-      .from('bills')
-      .select('id')
-      .eq('external_id', externalId)
-      .maybeSingle();
-
-    if (existing) {
-      skipped++;
-      continue;
-    }
-
-    // Fluff check on title
     const { isFluff, reason } = detectFluff(bill.title || '');
 
-    // Try to get bill text for summarization
-    let rawText = null;
-    try {
-      rawText = await fetchBillText(
-        String(bill.congress),
-        bill.type?.toLowerCase() || 'hr',
-        String(bill.number)
-      );
-      await new Promise(r => setTimeout(r, 200)); // rate limit
-    } catch {
-      // Text not available — that's fine
-    }
-
-    // Get sponsor info from detail
-    let sponsorName = null;
-    let sponsorState = null;
-    try {
-      const detail = await fetchBillDetail(
-        String(bill.congress),
-        bill.type?.toLowerCase() || 'hr',
-        String(bill.number)
-      );
-      if (detail?.sponsors?.[0]) {
-        const s = detail.sponsors[0];
-        sponsorName = s.fullName || `${s.firstName} ${s.lastName}`;
-        sponsorState = s.state;
-      }
-      await new Promise(r => setTimeout(r, 200));
-    } catch {
-      // Detail not available
-    }
-
-    const { error } = await supabaseAdmin.from('bills').insert({
+    rows.push({
       external_id: externalId,
       title: bill.title || 'Untitled',
-      sponsor_name: sponsorName,
-      sponsor_state: sponsorState,
+      sponsor_name: null,
+      sponsor_state: null,
       level: 'federal',
       state: null,
       status: bill.latestAction?.text || null,
@@ -111,16 +69,26 @@ async function fetchCongressBills() {
       source: 'congress',
       is_fluff: isFluff,
       fluff_reason: reason,
-      raw_text: rawText,
+      raw_text: null,
     });
+  }
+
+  // Batch upsert — skip duplicates via onConflict
+  const BATCH = 50;
+  for (let i = 0; i < rows.length; i += BATCH) {
+    const chunk = rows.slice(i, i + BATCH);
+    const { error, count } = await supabaseAdmin
+      .from('bills')
+      .upsert(chunk, { onConflict: 'external_id', ignoreDuplicates: true });
 
     if (error) {
-      console.error(`[Congress] Insert error for ${externalId}:`, error.message);
+      console.error(`[Congress] Batch insert error:`, error.message);
     } else {
-      inserted++;
+      inserted += chunk.length;
     }
   }
 
+  skipped = bills.length - inserted;
   return { fetched: bills.length, inserted, skipped };
 }
 
@@ -144,8 +112,15 @@ async function fetchLegiScanBills() {
     (cachedRows || []).map(r => [r.dataset_id, r.dataset_hash])
   );
 
-  // 4. Find changed datasets
-  const changed = getChangedDatasets(datasets, storedHashes);
+  // 4. Filter to current sessions only (year_start >= current year - 1)
+  const currentYear = new Date().getFullYear();
+  const currentDatasets = datasets.filter(ds => {
+    const yr = ds.year_start || ds.year_end || 0;
+    return yr >= currentYear - 1;
+  });
+
+  // 5. Find changed datasets
+  const changed = getChangedDatasets(currentDatasets, storedHashes);
 
   // 5. Pre-flight budget check
   const preflight = preFlightCheck(monthlyCount + 1, changed.length); // +1 for getDatasetList already called

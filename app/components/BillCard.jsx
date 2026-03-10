@@ -24,16 +24,18 @@ export default function BillCard({ bill, side, isWinner, isLoser, onSwipeUp, tou
 
       {/* Summary */}
       {bill.summary && (
-        <p style={styles.summary}>{bill.summary}</p>
+        <p style={styles.summary}>{bill.summary.replace(/\\n/g, ' ').replace(/\n/g, ' ')}</p>
       )}
 
-      {/* Sponsor */}
-      {bill.sponsor_name && (
-        <p style={styles.sponsor}>
-          {bill.sponsor_name}
-          {bill.sponsor_state ? ` (${bill.sponsor_state})` : ''}
-        </p>
-      )}
+      {/* Sponsor + Status */}
+      <div style={styles.meta}>
+        {bill.sponsor_name && (
+          <p style={styles.sponsor}>{bill.sponsor_name}</p>
+        )}
+        {bill.status && (
+          <p style={styles.status}>{bill.status}</p>
+        )}
+      </div>
 
       {/* Win/lose indicator */}
       {isWinner && <div style={styles.winOverlay}>CHOSEN</div>}
@@ -45,14 +47,17 @@ export default function BillCard({ bill, side, isWinner, isLoser, onSwipeUp, tou
 const styles = {
   card: {
     flex: 1,
+    minWidth: 0,
     display: 'flex',
     flexDirection: 'column',
-    padding: '24px 20px',
-    overflow: 'auto',
+    padding: '20px 16px',
+    overflowY: 'auto',
+    overflowX: 'hidden',
     cursor: 'pointer',
     position: 'relative',
     transition: 'background 0.3s ease, opacity 0.3s ease',
     background: 'var(--near-black)',
+    wordBreak: 'break-word',
   },
   winner: {
     background: 'rgba(108, 140, 255, 0.08)',
@@ -89,12 +94,25 @@ const styles = {
     marginBottom: 16,
     flex: 1,
   },
+  meta: {
+    marginTop: 'auto',
+    paddingTop: 8,
+    borderTop: '1px solid var(--border)',
+  },
   sponsor: {
     fontFamily: 'var(--mono)',
     fontSize: 11,
     color: 'var(--text-muted)',
     letterSpacing: '0.03em',
-    marginTop: 'auto',
+    margin: 0,
+  },
+  status: {
+    fontFamily: 'var(--mono)',
+    fontSize: 10,
+    color: 'var(--text-muted)',
+    letterSpacing: '0.03em',
+    marginTop: 4,
+    opacity: 0.7,
   },
   winOverlay: {
     position: 'absolute',

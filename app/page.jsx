@@ -53,7 +53,7 @@ export default function Home() {
           ← Back
         </button>
         <span style={styles.headerTitle}>
-          {prefs.scope === 'federal' ? 'Federal Bills' : `${prefs.state} Bills`}
+          Which bill do you prefer?
         </span>
         <div style={{ width: 60 }} /> {/* spacer for centering */}
       </div>
