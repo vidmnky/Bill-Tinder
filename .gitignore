@@ -3,3 +3,9 @@ node_modules/
 .env
 .next/
 .vercel/
+*.swp
+*.swo
+*~
+database password*
+*.key
+*.secret

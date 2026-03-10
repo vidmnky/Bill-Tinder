@@ -51,6 +51,29 @@ CREATE TABLE seen_pairs (
   UNIQUE (session_id, bill_a_id, bill_b_id)
 );
 
+-- API REQUEST COUNTER (tracks LegiScan usage to stay within 30k/month limit)
+CREATE TABLE api_usage (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  source TEXT NOT NULL CHECK (source IN ('congress', 'legiscan')),
+  operation TEXT NOT NULL,          -- e.g. 'getMasterList', 'getBill', 'getBillText'
+  month TEXT NOT NULL,              -- e.g. '2026-03' — for monthly rollup
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_api_usage_source_month ON api_usage(source, month);
+
+-- Quick view: how many LegiScan calls this month?
+CREATE VIEW legiscan_monthly_usage AS
+SELECT
+  month,
+  COUNT(*) AS total_requests,
+  30000 - COUNT(*) AS remaining,
+  ROUND(COUNT(*)::DECIMAL / 30000 * 100, 1) AS pct_used
+FROM api_usage
+WHERE source = 'legiscan'
+GROUP BY month
+ORDER BY month DESC;
+
 -- INDEXES
 CREATE INDEX idx_bills_level ON bills(level);
 CREATE INDEX idx_bills_state ON bills(state);
@@ -98,5 +121,9 @@ CREATE POLICY "Anyone can record a vote" ON comparisons FOR INSERT WITH CHECK (t
 CREATE POLICY "Anyone can read comparisons" ON comparisons FOR SELECT USING (true);
 CREATE POLICY "Anyone can record seen pairs" ON seen_pairs FOR INSERT WITH CHECK (true);
 CREATE POLICY "Anyone can read their seen pairs" ON seen_pairs FOR SELECT USING (true);
+
+-- API usage — only service role can write, public can read (for dashboard)
+ALTER TABLE api_usage ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "API usage is publicly readable" ON api_usage FOR SELECT USING (true);
 
 -- Service role (cron jobs) has full access via service role key — no policy needed for that
