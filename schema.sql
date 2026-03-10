@@ -51,6 +51,25 @@ CREATE TABLE seen_pairs (
   UNIQUE (session_id, bill_a_id, bill_b_id)
 );
 
+-- DATASET TRACKER (stores hash of each downloaded LegiScan session dataset)
+-- If the hash hasn't changed since last download, we skip it = 0 API calls
+CREATE TABLE dataset_cache (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  dataset_id INTEGER UNIQUE NOT NULL,     -- LegiScan's dataset ID
+  session_id INTEGER NOT NULL,            -- LegiScan's session ID
+  state TEXT NOT NULL,                    -- 2-letter state code
+  session_name TEXT,                      -- e.g. "2025-2026 Regular Session"
+  dataset_hash TEXT NOT NULL,             -- hash from getDatasetList — compare to skip re-downloads
+  access_key TEXT NOT NULL,               -- needed to call getDataset
+  dataset_date TEXT,                      -- last update date from LegiScan
+  last_downloaded TIMESTAMPTZ DEFAULT NOW(),
+  bills_imported INTEGER DEFAULT 0,       -- count of bills extracted from this dataset
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_dataset_cache_state ON dataset_cache(state);
+CREATE INDEX idx_dataset_cache_hash ON dataset_cache(dataset_hash);
+
 -- API REQUEST COUNTER (tracks LegiScan usage to stay within 30k/month limit)
 CREATE TABLE api_usage (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -121,6 +140,10 @@ CREATE POLICY "Anyone can record a vote" ON comparisons FOR INSERT WITH CHECK (t
 CREATE POLICY "Anyone can read comparisons" ON comparisons FOR SELECT USING (true);
 CREATE POLICY "Anyone can record seen pairs" ON seen_pairs FOR INSERT WITH CHECK (true);
 CREATE POLICY "Anyone can read their seen pairs" ON seen_pairs FOR SELECT USING (true);
+
+-- Dataset cache — service role writes, public can read
+ALTER TABLE dataset_cache ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Dataset cache is publicly readable" ON dataset_cache FOR SELECT USING (true);
 
 -- API usage — only service role can write, public can read (for dashboard)
 ALTER TABLE api_usage ENABLE ROW LEVEL SECURITY;
