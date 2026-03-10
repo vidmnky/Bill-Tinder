@@ -31,15 +31,24 @@ const STATES = [
   { code: 'DC', name: 'Washington DC' },
 ];
 
+const MODES = [
+  { id: 'balanced', label: 'Just the Facts', desc: 'Pros and cons, no spin' },
+  { id: 'liberal', label: 'Progressive Lens', desc: 'Workers, equity, environment' },
+  { id: 'conservative', label: 'Conservative Lens', desc: 'Taxes, freedom, limited govt' },
+];
+
 export default function StateSelect({ onSelect }) {
   const [scope, setScope] = useState('federal');
   const [selectedState, setSelectedState] = useState('');
+  const [mode, setMode] = useState('balanced');
 
   const handleGo = () => {
     if (scope === 'federal') {
-      onSelect({ scope: 'federal', state: null });
+      onSelect({ scope: 'federal', state: null, mode });
+    } else if (selectedState === 'all') {
+      onSelect({ scope: 'state', state: null, mode });
     } else if (selectedState) {
-      onSelect({ scope: 'state', state: selectedState });
+      onSelect({ scope: 'state', state: selectedState, mode });
     }
   };
 
@@ -67,6 +76,16 @@ export default function StateSelect({ onSelect }) {
       {/* State picker (only if state scope) */}
       {scope === 'state' && (
         <div style={styles.stateGrid}>
+          <button
+            style={{
+              ...styles.stateBtn,
+              ...styles.allBtn,
+              ...(selectedState === 'all' ? styles.stateActive : {}),
+            }}
+            onClick={() => setSelectedState('all')}
+          >
+            ALL
+          </button>
           {STATES.map(s => (
             <button
               key={s.code}
@@ -82,6 +101,25 @@ export default function StateSelect({ onSelect }) {
         </div>
       )}
 
+      {/* Mode selector */}
+      <div style={styles.modeSection}>
+        <p style={styles.modeLabel}>How should bills be described?</p>
+        <div style={styles.modeRow}>
+          {MODES.map(m => (
+            <button
+              key={m.id}
+              style={{
+                ...styles.modeBtn,
+                ...(mode === m.id ? styles.modeActive : {}),
+              }}
+              onClick={() => setMode(m.id)}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Go button */}
       <button
         style={{
@@ -91,7 +129,7 @@ export default function StateSelect({ onSelect }) {
         disabled={scope === 'state' && !selectedState}
         onClick={handleGo}
       >
-        {scope === 'federal' ? 'Compare Federal Bills' : `Compare ${selectedState || '...'} Bills`}
+        {scope === 'federal' ? 'Compare Federal Bills' : selectedState === 'all' ? 'Compare All State Bills' : `Compare ${selectedState || '...'} Bills`}
       </button>
     </div>
   );
@@ -144,6 +182,9 @@ const styles = {
     background: 'var(--accent-dim)',
     color: 'var(--accent)',
   },
+  allBtn: {
+    fontWeight: 700,
+  },
   stateGrid: {
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fill, minmax(52px, 1fr))',
@@ -171,6 +212,43 @@ const styles = {
     background: 'var(--accent-dim)',
     color: 'var(--accent)',
     borderColor: 'var(--accent)',
+  },
+  modeSection: {
+    width: '100%',
+    maxWidth: 480,
+    marginTop: 4,
+  },
+  modeLabel: {
+    fontFamily: 'var(--mono)',
+    fontSize: 11,
+    color: 'var(--text-muted)',
+    letterSpacing: '0.05em',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  modeRow: {
+    display: 'flex',
+    gap: 8,
+  },
+  modeBtn: {
+    flex: 1,
+    padding: '10px 8px',
+    background: 'var(--near-black)',
+    border: '1px solid var(--border)',
+    borderRadius: 4,
+    cursor: 'pointer',
+    transition: 'all 0.15s ease',
+    fontFamily: 'var(--mono)',
+    fontSize: 11,
+    fontWeight: 700,
+    color: 'var(--text)',
+    letterSpacing: '0.03em',
+    textAlign: 'center',
+  },
+  modeActive: {
+    background: 'var(--accent-dim)',
+    borderColor: 'var(--accent)',
+    color: 'var(--accent)',
   },
   goBtn: {
     fontFamily: 'var(--mono)',

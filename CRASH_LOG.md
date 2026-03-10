@@ -58,14 +58,29 @@
 36. GET /api/bills/pair — returns "Not enough bills" (correct, DB empty)
 37. POST /api/vote — correctly rejects non-UUID inputs
 
+## Session 3 — 2026-03-10
+
+### Completed (Leaderboard Feature):
+38. Created app/api/leaderboard/route.js — GET with ?state= filter, returns top 50 bills + top 25 sponsors by pick count
+39. Created app/components/Leaderboard.jsx — tabbed view (Top Bills / Top Sponsors), state filter dropdown, 30s auto-refresh, updates on refreshKey prop
+40. Edited app/page.jsx — leaderboard on landing page below StateSelect, lens name in header (replaces "Which bill do you prefer?"), Rankings/Swipe toggle button in header, refreshKey increments on each vote
+41. Edited app/components/SwipeArena.jsx — added onVote callback prop, called after successful vote POST
+42. Added bill_picks view to supabase/schema.sql — convenience view joining bills+comparisons for pick counts
+43. Build verified — `next build` succeeds cleanly, all routes compile
+
+44. Added "All States" option to StateSelect — button above state grid, sends state=null with scope=state
+45. Updated pair API to skip state filter when state is null/all (returns any state-level bill)
+46. Build verified clean
+
 ### In Progress:
-- Nothing — scaffold is complete and verified
+- Nothing — all features complete
 
 ### NOT YET DONE:
+- Run bill_picks view SQL in Supabase SQL Editor (new view from schema.sql)
 - First bill fetch: `curl -H "Authorization: Bearer $CRON_SECRET" http://localhost:3001/api/cron/fetch-bills`
 - First summarize: `curl -H "Authorization: Bearer $CRON_SECRET" http://localhost:3001/api/cron/summarize-bills`
-- End-to-end test: pick state → see bills → vote → check Supabase comparisons table
-- Git commit of scaffold (waiting for Nick's go-ahead)
+- End-to-end test: pick state → see bills → vote → check leaderboard updates
+- Git commit (waiting for Nick's go-ahead)
 - Git push (NEVER without permission)
 
 ### Issues / Notes:

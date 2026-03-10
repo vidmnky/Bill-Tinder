@@ -2,22 +2,19 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '../../../../lib/supabase';
 import { summarizeBill } from '../../../../lib/groq';
 
-const BATCH_SIZE = 50;
-const DELAY_MS = 2500; // 2.5s between calls = 24/min (under 30/min free tier)
+const BATCH_SIZE = 20; // 3 calls per bill × 20 = 60 calls, ~2.5s each = ~2.5 min
+const DELAY_MS = 2500;
 
 /**
  * GET /api/cron/summarize-bills
- * Protected by CRON_SECRET. Picks unsummarized bills and generates
- * plain-English summaries via Groq Llama 3 8B.
+ * Protected by CRON_SECRET. Generates all 3 summary modes per bill.
  */
 export async function GET(request) {
-  // Auth check
   const authHeader = request.headers.get('authorization');
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // Fetch unsummarized, non-fluff bills
   const { data: bills, error } = await supabaseAdmin
     .from('bills')
     .select('id, title, raw_text')
@@ -38,12 +35,24 @@ export async function GET(request) {
 
   for (const bill of bills) {
     try {
-      const summary = await summarizeBill(bill.title, bill.raw_text);
+      const balanced = await summarizeBill(bill.title, bill.raw_text, 'balanced');
+      await new Promise(r => setTimeout(r, DELAY_MS));
 
-      if (summary) {
+      const liberal = await summarizeBill(bill.title, bill.raw_text, 'liberal');
+      await new Promise(r => setTimeout(r, DELAY_MS));
+
+      const conservative = await summarizeBill(bill.title, bill.raw_text, 'conservative');
+      await new Promise(r => setTimeout(r, DELAY_MS));
+
+      if (balanced) {
         const { error: updateErr } = await supabaseAdmin
           .from('bills')
-          .update({ summary, is_summarized: true })
+          .update({
+            summary: balanced,
+            summary_liberal: liberal || null,
+            summary_conservative: conservative || null,
+            is_summarized: true,
+          })
           .eq('id', bill.id);
 
         if (updateErr) {
@@ -59,16 +68,7 @@ export async function GET(request) {
       console.error(`[Summarize] Groq error for ${bill.id}:`, err.message);
       failed++;
     }
-
-    // Rate limit: 2.5s between calls
-    if (bills.indexOf(bill) < bills.length - 1) {
-      await new Promise(r => setTimeout(r, DELAY_MS));
-    }
   }
 
-  return NextResponse.json({
-    total: bills.length,
-    summarized,
-    failed,
-  });
+  return NextResponse.json({ total: bills.length, summarized, failed });
 }

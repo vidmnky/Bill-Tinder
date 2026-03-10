@@ -1,8 +1,15 @@
 'use client';
 
-export default function BillCard({ bill, side, isWinner, isLoser, onSwipeUp, touchHandlers }) {
+export default function BillCard({ bill, side, mode = 'balanced', isWinner, isLoser, onSwipeUp, touchHandlers }) {
   const levelColor = bill.level === 'federal' ? '#6c8cff' : '#ff8c6c';
   const levelLabel = bill.level === 'federal' ? 'FEDERAL' : bill.state || 'STATE';
+
+  const summaryMap = {
+    balanced: bill.summary,
+    liberal: bill.summary_liberal || bill.summary,
+    conservative: bill.summary_conservative || bill.summary,
+  };
+  const displaySummary = summaryMap[mode] || bill.summary;
 
   return (
     <div
@@ -24,7 +31,7 @@ export default function BillCard({ bill, side, isWinner, isLoser, onSwipeUp, tou
 
       {/* Summary */}
       {bill.summary && (
-        <p style={styles.summary}>{bill.summary.replace(/\\n/g, ' ').replace(/\n/g, ' ')}</p>
+        <p style={styles.summary}>{displaySummary.replace(/\\n/g, ' ').replace(/\n/g, ' ')}</p>
       )}
 
       {/* Sponsor + Status */}

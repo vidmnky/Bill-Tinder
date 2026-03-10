@@ -1,15 +1,24 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { getSessionId } from './components/session';
 import StateSelect from './components/StateSelect';
 import SwipeArena from './components/SwipeArena';
+import Leaderboard from './components/Leaderboard';
 
 const PREFS_KEY = 'legisswipe_prefs';
+
+const MODE_LABELS = {
+  balanced: 'Just the Facts',
+  liberal: 'Progressive Lens',
+  conservative: 'Conservative Lens',
+};
 
 export default function Home() {
   const [sessionId, setSessionId] = useState(null);
   const [prefs, setPrefs] = useState(null); // { scope, state }
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
 
   useEffect(() => {
     // Init session
@@ -33,15 +42,27 @@ export default function Home() {
 
   const handleBack = () => {
     setPrefs(null);
+    setShowLeaderboard(false);
     localStorage.removeItem(PREFS_KEY);
   };
+
+  const handleVote = useCallback(() => {
+    setRefreshKey(k => k + 1);
+  }, []);
 
   // Wait for client-side init
   if (!sessionId) return null;
 
-  // State selection screen
+  // State selection screen — show leaderboard below
   if (!prefs) {
-    return <StateSelect onSelect={handleSelect} />;
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflowY: 'auto' }}>
+        <StateSelect onSelect={handleSelect} />
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '0 32px 32px' }}>
+          <Leaderboard refreshKey={refreshKey} />
+        </div>
+      </div>
+    );
   }
 
   // Main game
@@ -53,16 +74,29 @@ export default function Home() {
           ← Back
         </button>
         <span style={styles.headerTitle}>
-          Which bill do you prefer?
+          {MODE_LABELS[prefs.mode] || 'Just the Facts'}
         </span>
-        <div style={{ width: 60 }} /> {/* spacer for centering */}
+        <button
+          style={styles.lbBtn}
+          onClick={() => setShowLeaderboard(!showLeaderboard)}
+        >
+          {showLeaderboard ? 'Swipe' : 'Rankings'}
+        </button>
       </div>
 
-      <SwipeArena
-        userState={prefs.state}
-        scope={prefs.scope}
-        sessionId={sessionId}
-      />
+      {showLeaderboard ? (
+        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', justifyContent: 'center', padding: 24 }}>
+          <Leaderboard refreshKey={refreshKey} />
+        </div>
+      ) : (
+        <SwipeArena
+          userState={prefs.state}
+          scope={prefs.scope}
+          sessionId={sessionId}
+          mode={prefs.mode || 'balanced'}
+          onVote={handleVote}
+        />
+      )}
     </div>
   );
 }
@@ -94,5 +128,16 @@ const styles = {
     color: 'var(--text)',
     letterSpacing: '0.06em',
     textTransform: 'uppercase',
+  },
+  lbBtn: {
+    fontFamily: 'var(--mono)',
+    fontSize: 11,
+    color: 'var(--accent)',
+    background: 'none',
+    border: '1px solid var(--accent)',
+    borderRadius: 3,
+    cursor: 'pointer',
+    padding: '4px 10px',
+    letterSpacing: '0.03em',
   },
 };

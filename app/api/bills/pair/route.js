@@ -31,12 +31,12 @@ export async function GET(request) {
   // Fetch eligible bills (not fluff, has summary)
   let query = supabase
     .from('bills')
-    .select('id, external_id, title, summary, sponsor_name, sponsor_state, level, state, status, introduced_date')
+    .select('id, external_id, title, summary, summary_liberal, summary_conservative, sponsor_name, sponsor_state, level, state, status, introduced_date')
     .eq('is_fluff', false)
     .eq('is_summarized', true)
     .eq('level', scope);
 
-  if (scope === 'state' && state) {
+  if (scope === 'state' && state && state !== 'all') {
     query = query.eq('state', state);
   }
 

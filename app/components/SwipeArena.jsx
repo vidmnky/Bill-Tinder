@@ -6,7 +6,7 @@ import BillCard from './BillCard';
 const SWIPE_THRESHOLD = 60; // px upward movement to trigger a choice
 const NEXT_DELAY = 900;      // ms before loading next pair after a choice
 
-export default function SwipeArena({ userState, scope, sessionId }) {
+export default function SwipeArena({ userState, scope, sessionId, mode = 'balanced', onVote }) {
   const [pair, setPair] = useState(null);           // { billA, billB }
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -73,6 +73,8 @@ export default function SwipeArena({ userState, scope, sessionId }) {
         user_state: userState,
         session_id: sessionId,
       }),
+    }).then(() => {
+      if (onVote) onVote();
     }).catch(err => console.error('[SwipeArena] Vote record failed:', err.message));
 
     // Wait for animation, then load next pair
@@ -140,6 +142,7 @@ export default function SwipeArena({ userState, scope, sessionId }) {
       <BillCard
         bill={billA}
         side="left"
+        mode={mode}
         isWinner={winnerIsA}
         isLoser={winnerIsB}
         onSwipeUp={() => handleChoice(billA.id)}
@@ -153,6 +156,7 @@ export default function SwipeArena({ userState, scope, sessionId }) {
       <BillCard
         bill={billB}
         side="right"
+        mode={mode}
         isWinner={winnerIsB}
         isLoser={winnerIsA}
         onSwipeUp={() => handleChoice(billB.id)}
