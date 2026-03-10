@@ -5,10 +5,13 @@
 ---
 
 ## NEVER PUSH WITHOUT PERMISSION — ABSOLUTE RULE
-- NEVER run `git push` unless Nick explicitly says to push.
-- Commit locally and say "committed locally, ready to push when you say so" — then STOP.
-- This rule was established after 3 unauthorized pushes in the first session.
-- No exceptions. No "it seemed safe." Ask every time.
+- NEVER run `git push` unless Nick explicitly says the word "push" in that specific exchange.
+- "commit and push" = push allowed. "commit" alone = commit only, do NOT push.
+- After committing: say "committed locally, ready to push when you say so" — then STOP AND WAIT.
+- This rule was established after 3 unauthorized pushes in session 1, and VIOLATED AGAIN in session 3.
+- No exceptions. No "it seemed safe." No "he said push earlier so it's fine now." ASK EVERY TIME.
+- "Deploy" or "get it on Vercel" does NOT mean "push." Ask: "Ready for me to push to GitHub?"
+- If in doubt: DO NOT PUSH. Ask first. Always.
 
 ## CRASH LOG UPDATE RULE
 - Update ~/Desktop/Bill-Tinder/CRASH_LOG.md after EVERY exchange.
