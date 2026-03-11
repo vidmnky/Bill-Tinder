@@ -17,14 +17,16 @@ export default function SwipeArena({ userState, scope, sessionId, mode = 'balanc
   const touchStart = useRef(null);   // { x, y, side: 'left' | 'right' }
 
   const fetchPair = useCallback(async () => {
-    if (!userState || !sessionId) return;
+    if (!sessionId) return;
+    if (scope === 'state' && !userState) return;
 
     setLoading(true);
     setError(null);
     setWinnerId(null);
 
     try {
-      const params = new URLSearchParams({ state: userState, scope, session_id: sessionId });
+      const params = new URLSearchParams({ scope, session_id: sessionId });
+      if (userState) params.set('state', userState);
       const res = await fetch(`/api/bills/pair?${params}`);
       const data = await res.json();
 
