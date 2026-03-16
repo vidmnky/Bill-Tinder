@@ -13,6 +13,7 @@ CREATE TABLE bills (
   summary_conservative TEXT,                -- Conservative-lens summary
   impact_line TEXT,                         -- One sentence: what this bill does to you personally
   sponsor_name TEXT,
+  sponsor_party TEXT,                        -- R, D, I, L, etc.
   sponsor_state TEXT,                       -- 2-letter state code
   level TEXT NOT NULL CHECK (level IN ('federal', 'state')),
   state TEXT,                               -- NULL for federal, 2-letter code for state bills

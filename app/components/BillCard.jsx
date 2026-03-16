@@ -39,10 +39,14 @@ export default function BillCard({ bill, side, mode = 'balanced', isWinner, isLo
         <p style={styles.summary}>{bill.impact_line}</p>
       )}
 
-      {/* Sponsor + Status */}
+      {/* Sponsor + State + Status */}
       <div style={styles.meta}>
         {bill.sponsor_name && (
-          <p style={styles.sponsor}>{bill.sponsor_name}</p>
+          <p style={styles.sponsor}>
+            {bill.sponsor_name}
+            {bill.sponsor_party ? ` (${bill.sponsor_party})` : ''}
+            {bill.sponsor_state ? ` · ${bill.sponsor_state}` : ''}
+          </p>
         )}
         {bill.status && (
           <p style={styles.status}>{bill.status}</p>

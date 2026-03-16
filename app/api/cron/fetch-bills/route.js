@@ -68,12 +68,14 @@ async function fetchCongressBills() {
       || bill.sponsors?.[0]?.name
       || null;
     const sponsorState = bill.sponsors?.[0]?.state || null;
+    const sponsorParty = bill.sponsors?.[0]?.party || null;
     const sponsorBioguide = bill.sponsors?.[0]?.bioguideId || null;
 
     rows.push({
       external_id: externalId,
       title: bill.title || 'Untitled',
       sponsor_name: sponsorName,
+      sponsor_party: sponsorParty,
       sponsor_state: sponsorState,
       sponsor_bioguide_id: sponsorBioguide,
       level: 'federal',
@@ -190,6 +192,7 @@ async function fetchLegiScanBills(maxDatasets = 5) {
             external_id: externalId,
             title,
             sponsor_name: primarySponsor?.name || null,
+            sponsor_party: primarySponsor?.party || null,
             sponsor_state: dsState || bill.state || null,
             sponsor_legiscan_id: primarySponsor?.people_id || null,
             level: 'state',
