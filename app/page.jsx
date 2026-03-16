@@ -96,9 +96,14 @@ export default function Home() {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Header bar */}
       <div style={styles.header}>
-        <button style={styles.backBtn} onClick={handleBack}>
-          ← Back
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button style={styles.backBtn} onClick={handleBack}>
+            ← Back
+          </button>
+          <a href="https://determined-presence-production-cd4f.up.railway.app" style={styles.cmLink}>
+            Civic Mirror
+          </a>
+        </div>
         <span style={styles.headerTitle} onClick={cycleMode} title="Click to change lens">
           {MODE_LABELS[activeMode || prefs.mode] || 'Just the Facts'}
         </span>
@@ -220,5 +225,13 @@ const styles = {
     cursor: 'pointer',
     padding: '4px 10px',
     letterSpacing: '0.03em',
+  },
+  cmLink: {
+    fontFamily: 'var(--mono)',
+    fontSize: 11,
+    color: 'var(--text-dim)',
+    textDecoration: 'none',
+    letterSpacing: '0.03em',
+    padding: '4px 8px',
   },
 };
