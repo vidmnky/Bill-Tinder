@@ -53,7 +53,7 @@ export async function GET(request) {
  * The summarizer can work from titles; detail enrichment can run separately later.
  */
 async function fetchCongressBills() {
-  const bills = await fetchRecentBills(250);
+  const bills = await fetchRecentBills(500);
   let inserted = 0;
   let skipped = 0;
 
@@ -63,11 +63,19 @@ async function fetchCongressBills() {
     const externalId = `congress:${bill.type?.toLowerCase() || 'bill'}${bill.number}-${bill.congress}`;
     const { isFluff, reason } = detectFluff(bill.title || '');
 
+    // Congress.gov list may include sponsor info in some endpoints
+    const sponsorName = bill.sponsors?.[0]?.fullName
+      || bill.sponsors?.[0]?.name
+      || null;
+    const sponsorState = bill.sponsors?.[0]?.state || null;
+    const sponsorBioguide = bill.sponsors?.[0]?.bioguideId || null;
+
     rows.push({
       external_id: externalId,
       title: bill.title || 'Untitled',
-      sponsor_name: null,
-      sponsor_state: null,
+      sponsor_name: sponsorName,
+      sponsor_state: sponsorState,
+      sponsor_bioguide_id: sponsorBioguide,
       level: 'federal',
       state: null,
       status: bill.latestAction?.text || null,
@@ -174,12 +182,16 @@ async function fetchLegiScanBills(maxDatasets = 5) {
           // Fluff filter — zero API cost
           const { isFluff, reason } = detectFluff(title, rawText);
 
+          // Extract primary sponsor info (name + LegiScan people_id)
+          const primarySponsor = bill.sponsors?.find(s => s.sponsor_type_id === 1) || bill.sponsors?.[0];
+
           // Upsert bill
           const { error } = await supabaseAdmin.from('bills').upsert({
             external_id: externalId,
             title,
-            sponsor_name: bill.sponsors?.[0]?.name || null,
+            sponsor_name: primarySponsor?.name || null,
             sponsor_state: dsState || bill.state || null,
+            sponsor_legiscan_id: primarySponsor?.people_id || null,
             level: 'state',
             state: dsState || bill.state || null,
             status: bill.status_desc || null,

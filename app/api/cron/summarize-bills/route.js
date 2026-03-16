@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '../../../../lib/supabase';
 import { summarizeBill } from '../../../../lib/groq';
 
-const BATCH_SIZE = 20; // 3 calls per bill × 20 = 60 calls, ~2.5s each = ~2.5 min
-const DELAY_MS = 2500;
+const BATCH_SIZE = 50; // 3 calls per bill × 50 = 150 calls
+const DELAY_MS = 500;  // Groq handles high throughput
 
 /**
  * GET /api/cron/summarize-bills
@@ -15,12 +15,15 @@ export async function GET(request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const { searchParams } = new URL(request.url);
+  const limit = Math.min(parseInt(searchParams.get('limit') || String(BATCH_SIZE), 10), 200);
+
   const { data: bills, error } = await supabaseAdmin
     .from('bills')
     .select('id, title, raw_text')
     .eq('is_summarized', false)
     .eq('is_fluff', false)
-    .limit(BATCH_SIZE);
+    .limit(limit);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -32,6 +35,7 @@ export async function GET(request) {
 
   let summarized = 0;
   let failed = 0;
+  const errors = [];
 
   for (const bill of bills) {
     try {
@@ -56,19 +60,25 @@ export async function GET(request) {
           .eq('id', bill.id);
 
         if (updateErr) {
-          console.error(`[Summarize] Update error for ${bill.id}:`, updateErr.message);
+          errors.push(`${bill.id}: update failed: ${updateErr.message}`);
           failed++;
         } else {
           summarized++;
         }
       } else {
+        errors.push(`${bill.id}: empty balanced summary`);
         failed++;
       }
     } catch (err) {
-      console.error(`[Summarize] Groq error for ${bill.id}:`, err.message);
+      errors.push(`${bill.id}: ${err.message}`);
       failed++;
     }
   }
 
-  return NextResponse.json({ total: bills.length, summarized, failed });
+  return NextResponse.json({
+    total: bills.length,
+    summarized,
+    failed,
+    errors: errors.length > 0 ? errors : undefined,
+  });
 }

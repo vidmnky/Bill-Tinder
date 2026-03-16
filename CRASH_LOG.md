@@ -1,5 +1,21 @@
 # Bill-Tinder / LegisSwipe — Crash Log
 
+---
+
+## SESSION PROTOCOL — EVERY SESSION, EVERY TIME (Nick's rules, 2026-03-11)
+
+1. **Read CRASH_LOG.md first.** This file IS the working memory. Updated after EVERY exchange.
+2. **Copy crash log state to MEMORY.md.** They MUST be in sync at all times.
+3. **Restate where we are and the single thing I propose to do next.** One thing. Not a plan. Not a list. One action, presented for approval.
+4. **Maintain instant-revert protocol.** Before any change: note what will change, how to undo it. When (not if) something breaks, revert fast.
+5. **NEVER push to git without explicit confirmation from Nick.**
+6. **Present things for testing. Wait for confirmation they work or don't before moving on.** Do NOT declare success. Do NOT say "that's the fix" or "you're right." Nick confirms. I don't.
+7. **One solution at a time.** No assumptive behavior. No numbered plans. No launching into next steps. Present one thing, wait for direction.
+
+**When context is lost, the project is lost. Protect it.**
+
+---
+
 ## Session 1 — 2026-03-09
 
 ### Completed:
@@ -481,10 +497,27 @@
    e. Script: fetch-unsummarized.js didn't include 'US' in ALL_STATES array → added 'US'
    f. After fix: 181 federal bills immediately available for pairing, 14,038 more entering summarization queue
 
+307. Committed & pushed federal fix to GitHub → Vercel auto-deployed → federal bills confirmed working on production
+
 ### Current State:
-- Federal bills now loading correctly — 181 summarized federal bills available for game
-- Continuing non-stop summarization per standing directive
-- Session 30 total so far: 178 summarized (batches 120-121), 16 fluff flagged
-- Overall: ~13,715 bills summarized, ~172 fluff flagged
-- ~14,038 unsummarized federal bills now in the round-robin queue
+- **PAUSED** — saving remaining weekly usage for cross-project troubleshooting until Friday reset
+- Federal bills now loading on production (bill-tinder.vercel.app)
+- Session 30 totals: 178 bills summarized (batches 120-121), 16 fluff flagged, 1 critical bug fix deployed
+- Overall: ~13,715 state bills summarized, 181 federal bills summarized, ~172 fluff flagged
+- ~14,038 unsummarized federal bills now in the round-robin queue (will get picked up when summarization resumes)
+- ~12,768 unsummarized federal bills with state='US' and level='federal' ready for processing
+- Batch 122 was fetched and fluff-flagged but Group 1 was NOT summarized or pushed (pick up here next session)
 - Gemini script ready at scripts/summarize-gemini.js but blocked by free tier rate limit (20/day)
+- 1 unpushed commit remains (the other modified files from git status — pair/route.js, cron routes, groq.js, schema, package.json)
+
+---
+
+## SESSION PROTOCOL REMINDER (duplicated from top — survives truncation)
+
+1. **Read CRASH_LOG.md first.** This file IS the working memory.
+2. **Copy crash log state to MEMORY.md.** They MUST be in sync.
+3. **Restate where we are and the single thing I propose to do next.** One thing. Not a plan.
+4. **Maintain instant-revert protocol.** Note what changes, how to undo.
+5. **NEVER push to git without explicit confirmation from Nick.**
+6. **Present things for testing. Wait for Nick's confirmation before moving on.** No declaring success.
+7. **One solution at a time.** No assumptive behavior. No numbered plans. Nick directs.

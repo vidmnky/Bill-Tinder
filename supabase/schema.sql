@@ -18,6 +18,8 @@ CREATE TABLE bills (
   status TEXT,                              -- Current bill status
   introduced_date DATE,
   source TEXT NOT NULL CHECK (source IN ('congress', 'legiscan')),
+  sponsor_legiscan_id INTEGER,              -- LegiScan people_id for sponsor (bridge to Civic Mirror)
+  sponsor_bioguide_id TEXT,                 -- Congress.gov bioguide_id for federal sponsors
   is_fluff BOOLEAN DEFAULT FALSE,           -- TRUE = filtered out, won't appear in game
   fluff_reason TEXT,                        -- Why it was filtered (for debugging)
   is_summarized BOOLEAN DEFAULT FALSE,      -- TRUE = summary generated
@@ -101,6 +103,10 @@ CREATE INDEX idx_bills_state ON bills(state);
 CREATE INDEX idx_bills_is_fluff ON bills(is_fluff);
 CREATE INDEX idx_bills_is_summarized ON bills(is_summarized);
 CREATE INDEX idx_bills_source ON bills(source);
+-- Composite index for the pair-selection query (level + is_fluff + is_summarized + state)
+CREATE INDEX idx_bills_pair_lookup ON bills(level, is_fluff, is_summarized, state);
+CREATE INDEX idx_bills_sponsor_legiscan_id ON bills(sponsor_legiscan_id);
+CREATE INDEX idx_bills_sponsor_bioguide_id ON bills(sponsor_bioguide_id);
 CREATE INDEX idx_comparisons_winner ON comparisons(winner_id);
 CREATE INDEX idx_comparisons_session ON comparisons(session_id);
 CREATE INDEX idx_comparisons_created ON comparisons(created_at);
