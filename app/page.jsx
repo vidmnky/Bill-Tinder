@@ -14,11 +14,22 @@ const MODE_LABELS = {
   conservative: 'Conservative Lens',
 };
 
+const MODE_ORDER = ['balanced', 'liberal', 'conservative'];
+
 export default function Home() {
   const [sessionId, setSessionId] = useState(null);
   const [prefs, setPrefs] = useState(null); // { scope, state }
   const [refreshKey, setRefreshKey] = useState(0);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [activeMode, setActiveMode] = useState(null);
+
+  const cycleMode = () => {
+    setActiveMode(prev => {
+      const current = prev || (prefs && prefs.mode) || 'balanced';
+      const idx = MODE_ORDER.indexOf(current);
+      return MODE_ORDER[(idx + 1) % MODE_ORDER.length];
+    });
+  };
 
   useEffect(() => {
     // Init session
@@ -73,8 +84,8 @@ export default function Home() {
         <button style={styles.backBtn} onClick={handleBack}>
           ← Back
         </button>
-        <span style={styles.headerTitle}>
-          {MODE_LABELS[prefs.mode] || 'Just the Facts'}
+        <span style={styles.headerTitle} onClick={cycleMode} title="Click to change lens">
+          {MODE_LABELS[activeMode || prefs.mode] || 'Just the Facts'}
         </span>
         <button
           style={styles.lbBtn}
@@ -93,7 +104,7 @@ export default function Home() {
           userState={prefs.state}
           scope={prefs.scope}
           sessionId={sessionId}
-          mode={prefs.mode || 'balanced'}
+          mode={activeMode || prefs.mode || 'balanced'}
           onVote={handleVote}
         />
       )}
@@ -125,9 +136,14 @@ const styles = {
     fontFamily: 'var(--mono)',
     fontSize: 12,
     fontWeight: 700,
-    color: 'var(--text)',
+    color: 'var(--accent)',
     letterSpacing: '0.06em',
     textTransform: 'uppercase',
+    cursor: 'pointer',
+    padding: '4px 8px',
+    borderRadius: 3,
+    border: '1px solid var(--border)',
+    transition: 'all 0.15s ease',
   },
   lbBtn: {
     fontFamily: 'var(--mono)',

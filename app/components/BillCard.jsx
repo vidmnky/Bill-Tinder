@@ -34,6 +34,11 @@ export default function BillCard({ bill, side, mode = 'balanced', isWinner, isLo
         <p style={styles.summary}>{displaySummary.replace(/\\n/g, ' ').replace(/\n/g, ' ')}</p>
       )}
 
+      {/* Impact line */}
+      {bill.impact_line && (
+        <p style={styles.summary}>{bill.impact_line}</p>
+      )}
+
       {/* Sponsor + Status */}
       <div style={styles.meta}>
         {bill.sponsor_name && (
