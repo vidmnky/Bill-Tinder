@@ -19,20 +19,24 @@ export async function GET(request) {
   // and aggregate client-side, or use the bill_win_rates view.
   // For efficiency, let's query comparisons + bills and aggregate.
 
-  // Fetch all comparisons (winner_id only) — filtered by state if needed
-  let comparisonsQuery = supabase
+  // Fetch all comparisons (winner_id only)
+  const { data: comparisons, error: compError } = await supabase
     .from('comparisons')
     .select('winner_id');
-
-  // If filtering by state, we need to join through bills.
-  // Since supabase-js can't do complex joins with GROUP BY,
-  // fetch winner counts then enrich with bill data.
-
-  const { data: comparisons, error: compError } = await comparisonsQuery;
 
   if (compError) {
     console.error('[Leaderboard] Comparisons query error:', compError.message);
     return NextResponse.json({ error: compError.message }, { status: 500 });
+  }
+
+  // Fetch all ratings (bill_id + rating)
+  const { data: ratings, error: ratingsError } = await supabase
+    .from('ratings')
+    .select('bill_id, rating');
+
+  if (ratingsError) {
+    console.error('[Leaderboard] Ratings query error:', ratingsError.message);
+    // Non-fatal — continue without ratings
   }
 
   // Count picks per bill
@@ -41,7 +45,23 @@ export async function GET(request) {
     pickCounts[row.winner_id] = (pickCounts[row.winner_id] || 0) + 1;
   }
 
-  const billIds = Object.keys(pickCounts);
+  // Count approvals and rejections per bill
+  const ratingCounts = {}; // bill_id -> { approvals, rejections }
+  for (const row of ratings || []) {
+    if (!ratingCounts[row.bill_id]) {
+      ratingCounts[row.bill_id] = { approvals: 0, rejections: 0 };
+    }
+    if (row.rating === 'approve') ratingCounts[row.bill_id].approvals++;
+    else if (row.rating === 'reject') ratingCounts[row.bill_id].rejections++;
+  }
+
+  // Collect all bill IDs that have any activity
+  const billIdSet = new Set([
+    ...Object.keys(pickCounts),
+    ...Object.keys(ratingCounts),
+  ]);
+  const billIds = [...billIdSet];
+
   if (billIds.length === 0) {
     return NextResponse.json({ bills: [], sponsors: [], states: [] });
   }
@@ -80,11 +100,15 @@ export async function GET(request) {
       if (billState !== stateFilter && b.sponsor_state !== stateFilter) continue;
     }
 
+    const rc = ratingCounts[b.id] || { approvals: 0, rejections: 0 };
+
     billsRanked.push({
       title: b.title,
       sponsor_name: b.sponsor_name,
       state: b.state || 'federal',
       picks,
+      approvals: rc.approvals,
+      rejections: rc.rejections,
     });
 
     // Aggregate sponsors

@@ -152,6 +152,30 @@ WHERE b.is_fluff = FALSE
 GROUP BY b.id
 ORDER BY picks DESC;
 
+-- RATINGS TABLE (single-bill approve/reject votes)
+CREATE TABLE ratings (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  bill_id UUID NOT NULL REFERENCES bills(id),
+  rating TEXT NOT NULL CHECK (rating IN ('approve', 'reject')),
+  session_id TEXT NOT NULL,
+  user_state TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_ratings_bill ON ratings(bill_id);
+CREATE INDEX idx_ratings_session ON ratings(session_id);
+
+-- SEEN BILLS TABLE (per session — prevents showing same bill twice in Rate mode)
+CREATE TABLE seen_bills (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  session_id TEXT NOT NULL,
+  bill_id UUID NOT NULL REFERENCES bills(id),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(session_id, bill_id)
+);
+
+CREATE INDEX idx_seen_bills_session ON seen_bills(session_id);
+
 -- RLS: Enable row-level security (Supabase best practice)
 ALTER TABLE bills ENABLE ROW LEVEL SECURITY;
 ALTER TABLE comparisons ENABLE ROW LEVEL SECURITY;
@@ -173,5 +197,15 @@ CREATE POLICY "Dataset cache is publicly readable" ON dataset_cache FOR SELECT U
 -- API usage — only service role can write, public can read (for dashboard)
 ALTER TABLE api_usage ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "API usage is publicly readable" ON api_usage FOR SELECT USING (true);
+
+-- Ratings — public read + insert (anonymous voting)
+ALTER TABLE ratings ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Anyone can record a rating" ON ratings FOR INSERT WITH CHECK (true);
+CREATE POLICY "Anyone can read ratings" ON ratings FOR SELECT USING (true);
+
+-- Seen bills — public read + insert
+ALTER TABLE seen_bills ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Anyone can record seen bills" ON seen_bills FOR INSERT WITH CHECK (true);
+CREATE POLICY "Anyone can read seen bills" ON seen_bills FOR SELECT USING (true);
 
 -- Service role (cron jobs) has full access via service role key — no policy needed for that

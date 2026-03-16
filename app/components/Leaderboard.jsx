@@ -88,7 +88,16 @@ export default function Leaderboard({ refreshKey = 0 }) {
                   {bill.sponsor_name || 'Unknown'} · {bill.state}
                 </span>
               </div>
-              <span style={styles.pickCount}>{bill.picks}</span>
+              <div style={styles.statsCol}>
+                {bill.picks > 0 && <span style={styles.pickCount}>{bill.picks} picks</span>}
+                {(bill.approvals > 0 || bill.rejections > 0) && (
+                  <span style={styles.ratingCount}>
+                    <span style={{ color: '#6bff6b' }}>+{bill.approvals || 0}</span>
+                    {' / '}
+                    <span style={{ color: '#ff6b6b' }}>-{bill.rejections || 0}</span>
+                  </span>
+                )}
+              </div>
             </div>
           ))}
         </div>
@@ -216,12 +225,23 @@ const styles = {
     color: 'var(--text-muted)',
     letterSpacing: '0.03em',
   },
+  statsCol: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-end',
+    gap: 2,
+    minWidth: 60,
+  },
   pickCount: {
     fontFamily: 'var(--mono)',
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: 700,
     color: 'var(--text)',
-    minWidth: 30,
+    textAlign: 'right',
+  },
+  ratingCount: {
+    fontFamily: 'var(--mono)',
+    fontSize: 10,
     textAlign: 'right',
   },
   emptyText: {
