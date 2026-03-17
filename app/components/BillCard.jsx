@@ -18,7 +18,6 @@ export default function BillCard({ bill, side, mode = 'balanced', isWinner, isLo
         ...(isWinner ? styles.winner : {}),
         ...(isLoser ? styles.loser : {}),
       }}
-      onClick={onSwipeUp}
       {...touchHandlers}
     >
       {/* Level badge */}

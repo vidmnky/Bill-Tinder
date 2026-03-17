@@ -104,10 +104,7 @@ export default function SwipeArena({ userState, scope, sessionId, mode = 'balanc
       }
       touchStart.current = null;
     },
-    onTouchMove: (e) => {
-      // Prevent page scroll while swiping on cards
-      e.preventDefault();
-    },
+    onTouchMove: () => {},
   }), [handleChoice]);
 
   // ---- RENDER STATES ----

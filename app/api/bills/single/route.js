@@ -23,8 +23,11 @@ export async function GET(request) {
     .from('bills')
     .select('id', { count: 'exact', head: true })
     .eq('is_fluff', false)
-    .eq('is_summarized', true)
-    .eq('level', scope);
+    .eq('is_summarized', true);
+
+  if (scope !== 'all') {
+    countQuery = countQuery.eq('level', scope);
+  }
 
   if (scope === 'state' && state && state !== 'all') {
     countQuery = countQuery.eq('state', state);
@@ -64,8 +67,13 @@ export async function GET(request) {
     .from('bills')
     .select(selectFields)
     .eq('is_fluff', false)
-    .eq('is_summarized', true)
-    .eq('level', scope)
+    .eq('is_summarized', true);
+
+  if (scope !== 'all') {
+    poolQuery = poolQuery.eq('level', scope);
+  }
+
+  poolQuery = poolQuery
     .order('id')
     .range(offset, offset + poolSize - 1);
 
@@ -107,8 +115,13 @@ export async function GET(request) {
     .from('bills')
     .select(selectFields)
     .eq('is_fluff', false)
-    .eq('is_summarized', true)
-    .eq('level', scope)
+    .eq('is_summarized', true);
+
+  if (scope !== 'all') {
+    retryQuery = retryQuery.eq('level', scope);
+  }
+
+  retryQuery = retryQuery
     .order('id')
     .range(offset2, offset2 + poolSize - 1);
 

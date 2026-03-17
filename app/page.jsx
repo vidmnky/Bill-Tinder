@@ -77,7 +77,7 @@ export default function Home() {
             </div>
             <button
               style={styles.swipeEntryBtn}
-              onClick={() => handleSelect({ scope: 'federal', state: null, mode: 'balanced', singleBill: true })}
+              onClick={() => handleSelect({ scope: 'all', state: null, mode: 'balanced', singleBill: true })}
             >
               Swipe Bills
             </button>
@@ -153,6 +153,7 @@ const styles = {
     width: '100%',
     display: 'flex',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 12,
   },
   swipeDividerText: {
