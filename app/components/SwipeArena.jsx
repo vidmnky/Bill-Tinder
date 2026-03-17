@@ -15,6 +15,7 @@ export default function SwipeArena({ userState, scope, sessionId, mode = 'balanc
 
   // Touch state
   const touchStart = useRef(null);   // { x, y, side: 'left' | 'right' }
+  const scrolledDuringTouch = useRef(false);
 
   const fetchPair = useCallback(async () => {
     if (!sessionId) return;
@@ -90,21 +91,31 @@ export default function SwipeArena({ userState, scope, sessionId, mode = 'balanc
   const makeTouchHandlers = useCallback((billId) => ({
     onTouchStart: (e) => {
       const touch = e.touches[0];
-      touchStart.current = { x: touch.clientX, y: touch.clientY, billId };
+      touchStart.current = { x: touch.clientX, y: touch.clientY, billId, scrollTop: e.currentTarget.scrollTop };
+      scrolledDuringTouch.current = false;
     },
     onTouchEnd: (e) => {
       if (!touchStart.current || touchStart.current.billId !== billId) return;
-      const touch = e.changedTouches[0];
-      const deltaY = touchStart.current.y - touch.clientY;
-      const deltaX = Math.abs(touchStart.current.x - touch.clientX);
+      // If the card scrolled during this touch, it's a scroll not a swipe
+      const didScroll = e.currentTarget.scrollTop !== touchStart.current.scrollTop;
+      if (!didScroll && !scrolledDuringTouch.current) {
+        const touch = e.changedTouches[0];
+        const deltaY = touchStart.current.y - touch.clientY;
+        const deltaX = Math.abs(touchStart.current.x - touch.clientX);
 
-      // Upward swipe, not too horizontal
-      if (deltaY > SWIPE_THRESHOLD && deltaX < deltaY) {
-        handleChoice(billId);
+        // Upward swipe, not too horizontal
+        if (deltaY > SWIPE_THRESHOLD && deltaX < deltaY) {
+          handleChoice(billId);
+        }
       }
       touchStart.current = null;
     },
-    onTouchMove: () => {},
+    onTouchMove: (e) => {
+      // Track if content scrolled during this gesture
+      if (touchStart.current && e.currentTarget.scrollTop !== touchStart.current.scrollTop) {
+        scrolledDuringTouch.current = true;
+      }
+    },
   }), [handleChoice]);
 
   // ---- RENDER STATES ----

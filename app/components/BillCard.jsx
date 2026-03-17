@@ -68,7 +68,7 @@ const styles = {
     padding: '20px 16px',
     overflowY: 'auto',
     overflowX: 'hidden',
-    cursor: 'pointer',
+    cursor: 'default',
     position: 'relative',
     transition: 'background 0.3s ease, opacity 0.3s ease',
     background: 'var(--near-black)',
