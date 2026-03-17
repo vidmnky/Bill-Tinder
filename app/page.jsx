@@ -23,6 +23,7 @@ export default function Home() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [activeMode, setActiveMode] = useState(null);
+  const [homeSelection, setHomeSelection] = useState({ scope: 'federal', state: '', mode: 'balanced' });
 
   const cycleMode = () => {
     setActiveMode(prev => {
@@ -69,7 +70,7 @@ export default function Home() {
   if (!prefs) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflowY: 'auto' }}>
-        <StateSelect onSelect={handleSelect} />
+        <StateSelect onSelect={handleSelect} onChange={setHomeSelection} />
         <div style={{ display: 'flex', justifyContent: 'center', padding: '0 32px 0' }}>
           <div style={styles.swipeEntry}>
             <div style={styles.swipeDivider}>
@@ -77,7 +78,12 @@ export default function Home() {
             </div>
             <button
               style={styles.swipeEntryBtn}
-              onClick={() => handleSelect({ scope: 'all', state: null, mode: 'balanced', singleBill: true })}
+              onClick={() => handleSelect({
+                scope: homeSelection.scope === 'state' && homeSelection.state ? 'state' : 'all',
+                state: homeSelection.scope === 'state' ? (homeSelection.state === 'all' ? null : homeSelection.state) : null,
+                mode: homeSelection.mode || 'balanced',
+                singleBill: true,
+              })}
             >
               Swipe Bills
             </button>

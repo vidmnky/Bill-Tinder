@@ -37,10 +37,15 @@ const MODES = [
   { id: 'conservative', label: 'Conservative Lens', desc: 'Taxes, freedom, limited govt' },
 ];
 
-export default function StateSelect({ onSelect }) {
+export default function StateSelect({ onSelect, onChange }) {
   const [scope, setScope] = useState('federal');
   const [selectedState, setSelectedState] = useState('');
   const [mode, setMode] = useState('balanced');
+
+  // Report selection changes to parent
+  const updateScope = (s) => { setScope(s); onChange?.({ scope: s, state: selectedState, mode }); };
+  const updateState = (s) => { setSelectedState(s); onChange?.({ scope, state: s, mode }); };
+  const updateMode = (m) => { setMode(m); onChange?.({ scope, state: selectedState, mode: m }); };
 
   const handleGo = () => {
     if (scope === 'federal') {
@@ -61,13 +66,13 @@ export default function StateSelect({ onSelect }) {
       <div style={styles.toggleRow}>
         <button
           style={{ ...styles.toggleBtn, ...(scope === 'federal' ? styles.toggleActive : {}) }}
-          onClick={() => setScope('federal')}
+          onClick={() => updateScope('federal')}
         >
           Federal
         </button>
         <button
           style={{ ...styles.toggleBtn, ...(scope === 'state' ? styles.toggleActive : {}) }}
-          onClick={() => setScope('state')}
+          onClick={() => updateScope('state')}
         >
           State
         </button>
@@ -82,7 +87,7 @@ export default function StateSelect({ onSelect }) {
               ...styles.allBtn,
               ...(selectedState === 'all' ? styles.stateActive : {}),
             }}
-            onClick={() => setSelectedState('all')}
+            onClick={() => updateState('all')}
           >
             ALL
           </button>
@@ -93,7 +98,7 @@ export default function StateSelect({ onSelect }) {
                 ...styles.stateBtn,
                 ...(selectedState === s.code ? styles.stateActive : {}),
               }}
-              onClick={() => setSelectedState(s.code)}
+              onClick={() => updateState(s.code)}
             >
               {s.code}
             </button>
@@ -112,7 +117,7 @@ export default function StateSelect({ onSelect }) {
                 ...styles.modeBtn,
                 ...(mode === m.id ? styles.modeActive : {}),
               }}
-              onClick={() => setMode(m.id)}
+              onClick={() => updateMode(m.id)}
             >
               {m.label}
             </button>
