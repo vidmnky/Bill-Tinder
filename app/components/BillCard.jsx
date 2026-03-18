@@ -1,6 +1,6 @@
 'use client';
 
-export default function BillCard({ bill, side, mode = 'balanced', isWinner, isLoser, onSwipeUp, touchHandlers }) {
+export default function BillCard({ bill, side, mode = 'balanced', isWinner, isLoser, onSwipeUp, onClick, touchHandlers }) {
   const levelColor = bill.level === 'federal' ? '#6c8cff' : '#ff8c6c';
   const levelLabel = bill.level === 'federal' ? 'FEDERAL' : bill.state || 'STATE';
 
@@ -18,11 +18,17 @@ export default function BillCard({ bill, side, mode = 'balanced', isWinner, isLo
         ...(isWinner ? styles.winner : {}),
         ...(isLoser ? styles.loser : {}),
       }}
+      onClick={onClick}
       {...touchHandlers}
     >
-      {/* Level badge */}
-      <div style={{ ...styles.badge, borderColor: levelColor, color: levelColor }}>
-        {levelLabel}
+      {/* Level badge + bill number */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+        <div style={{ ...styles.badge, marginBottom: 0, borderColor: levelColor, color: levelColor }}>
+          {levelLabel}
+        </div>
+        {bill.bill_number && (
+          <span style={styles.billNumber}>{bill.bill_number}</span>
+        )}
       </div>
 
       {/* Title */}
@@ -74,7 +80,7 @@ const styles = {
     padding: '20px 16px',
     overflowY: 'auto',
     overflowX: 'hidden',
-    cursor: 'default',
+    cursor: 'pointer',
     position: 'relative',
     transition: 'background 0.3s ease, opacity 0.3s ease',
     background: 'var(--near-black)',
@@ -126,6 +132,13 @@ const styles = {
     color: 'var(--text-muted)',
     letterSpacing: '0.03em',
     margin: 0,
+  },
+  billNumber: {
+    fontFamily: 'var(--mono)',
+    fontSize: 13,
+    fontWeight: 600,
+    color: 'var(--text-muted)',
+    letterSpacing: '0.05em',
   },
   status: {
     fontFamily: 'var(--mono)',

@@ -55,7 +55,7 @@ export async function GET(request) {
     (seenRows || []).map(r => `${r.bill_a_id}|${r.bill_b_id}`)
   );
 
-  const selectFields = 'id, external_id, title, summary, summary_liberal, summary_conservative, impact_line, impact_line_liberal, impact_line_conservative, sponsor_name, sponsor_party, sponsor_state, level, state, status, introduced_date';
+  const selectFields = 'id, external_id, bill_number, title, summary, summary_liberal, summary_conservative, impact_line, impact_line_liberal, impact_line_conservative, sponsor_name, sponsor_party, sponsor_state, level, state, status, introduced_date';
 
   // Fetch a pool of bills in ONE query (much faster than individual offset fetches)
   const poolSize = Math.min(40, count);

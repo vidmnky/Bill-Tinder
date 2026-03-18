@@ -56,7 +56,7 @@ export async function GET(request) {
 
   const seenSet = new Set((seenRows || []).map(r => r.bill_id));
 
-  const selectFields = 'id, external_id, title, summary, summary_liberal, summary_conservative, impact_line, impact_line_liberal, impact_line_conservative, sponsor_name, sponsor_party, sponsor_state, level, state, status, introduced_date';
+  const selectFields = 'id, external_id, bill_number, title, summary, summary_liberal, summary_conservative, impact_line, impact_line_liberal, impact_line_conservative, sponsor_name, sponsor_party, sponsor_state, level, state, status, introduced_date';
 
   // Fetch a pool of bills
   const poolSize = Math.min(40, count);

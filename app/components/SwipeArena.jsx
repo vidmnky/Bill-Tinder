@@ -156,6 +156,7 @@ export default function SwipeArena({ userState, scope, sessionId, mode = 'balanc
         isWinner={winnerIsA}
         isLoser={winnerIsB}
         onSwipeUp={() => handleChoice(billA.id)}
+        onClick={() => handleChoice(billA.id)}
         touchHandlers={makeTouchHandlers(billA.id)}
       />
 
@@ -170,6 +171,7 @@ export default function SwipeArena({ userState, scope, sessionId, mode = 'balanc
         isWinner={winnerIsB}
         isLoser={winnerIsA}
         onSwipeUp={() => handleChoice(billB.id)}
+        onClick={() => handleChoice(billB.id)}
         touchHandlers={makeTouchHandlers(billB.id)}
       />
     </div>

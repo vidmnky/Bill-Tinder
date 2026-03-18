@@ -48,22 +48,21 @@ export async function GET(request) {
 }
 
 /**
- * Fetch recent federal bills from Congress.gov and upsert into DB.
- * Uses batch insert — imports list metadata only (no per-bill detail/text calls).
- * The summarizer can work from titles; detail enrichment can run separately later.
+ * Fetch recent federal bills from Congress.gov and upsert into the bill pool.
+ * Writes directly to core_mediaitem (the single bill table).
+ * The `bills` VIEW exposes these to LegisSwipe automatically.
  */
 async function fetchCongressBills() {
   const bills = await fetchRecentBills(500);
   let inserted = 0;
   let skipped = 0;
 
-  // Build rows for batch upsert
+  // Build rows for batch upsert into core_mediaitem
   const rows = [];
   for (const bill of bills) {
     const externalId = `congress:${bill.type?.toLowerCase() || 'bill'}${bill.number}-${bill.congress}`;
     const { isFluff, reason } = detectFluff(bill.title || '');
 
-    // Congress.gov list may include sponsor info in some endpoints
     const sponsorName = bill.sponsors?.[0]?.fullName
       || bill.sponsors?.[0]?.name
       || null;
@@ -71,31 +70,60 @@ async function fetchCongressBills() {
     const sponsorParty = bill.sponsors?.[0]?.party || null;
     const sponsorBioguide = bill.sponsors?.[0]?.bioguideId || null;
 
+    // Build bill number: e.g. "HR 7531", "S 236"
+    const billType = (bill.type || 'bill').toUpperCase();
+    const billNum = bill.number ? `${billType} ${bill.number}` : '';
+
     rows.push({
-      external_id: externalId,
-      title: bill.title || 'Untitled',
-      sponsor_name: sponsorName,
-      sponsor_party: sponsorParty,
-      sponsor_state: sponsorState,
-      sponsor_bioguide_id: sponsorBioguide,
-      level: 'federal',
-      state: null,
-      status: bill.latestAction?.text || null,
-      introduced_date: bill.introducedDate || null,
-      source: 'congress',
+      media_type: 'bill',
+      bill_id: externalId,
+      bill_number: billNum,
+      title: (bill.title || 'Untitled').slice(0, 1000),
+      bill_sponsor_name: sponsorName || '',
+      bill_sponsor_party: sponsorParty || '',
+      bill_sponsor_state: sponsorState || '',
+      bill_sponsor_bioguide_id: sponsorBioguide || '',
+      bill_level: 'federal',
+      bill_state_code: '',
+      bill_stage: (bill.latestAction?.text || '').slice(0, 30),
+      source_date: bill.introducedDate || null,
+      bill_source: 'congress',
+      source_name: 'congress',
       is_fluff: isFluff,
-      fluff_reason: reason,
-      raw_text: null,
+      fluff_reason: reason || '',
+      content_text: '',
+      legisswipe_uuid: crypto.randomUUID(),
+      // Defaults for required fields
+      description: '',
+      summary: '',
+      summary_liberal: '',
+      summary_conservative: '',
+      impact_line: '',
+      impact_line_liberal: '',
+      impact_line_conservative: '',
+      review_notes: '',
+      bill_committee: '',
+      bill_chamber: '',
+      bill_actions: '',
+      external_url: '',
+      source_url: '',
+      verdict: 'unrated',
+      status: 'pending',
+      pin_order: 0,
+      bill_active: true,
+      is_summarized: false,
+      is_hot: false,
+      hot_score: 0,
     });
   }
 
-  // Batch upsert — skip duplicates via onConflict
+  // Batch upsert — skip duplicates via bill_id (was external_id)
   const BATCH = 50;
   for (let i = 0; i < rows.length; i += BATCH) {
     const chunk = rows.slice(i, i + BATCH);
     const { error, count } = await supabaseAdmin
-      .from('bills')
-      .upsert(chunk, { onConflict: 'external_id', ignoreDuplicates: true });
+      .from('core_mediaitem')
+      .upsert(chunk, { onConflict: 'bill_id', ignoreDuplicates: true });
 
     if (error) {
       console.error(`[Congress] Batch insert error:`, error.message);
@@ -187,23 +215,48 @@ async function fetchLegiScanBills(maxDatasets = 5) {
           // Extract primary sponsor info (name + LegiScan people_id)
           const primarySponsor = bill.sponsors?.find(s => s.sponsor_type_id === 1) || bill.sponsors?.[0];
 
-          // Upsert bill
-          const { error } = await supabaseAdmin.from('bills').upsert({
-            external_id: externalId,
-            title,
-            sponsor_name: primarySponsor?.name || null,
-            sponsor_party: primarySponsor?.party || null,
-            sponsor_state: dsState || bill.state || null,
-            sponsor_legiscan_id: primarySponsor?.people_id || null,
-            level: 'state',
-            state: dsState || bill.state || null,
-            status: bill.status_desc || null,
-            introduced_date: bill.status_date || null,
-            source: 'legiscan',
+          // Upsert bill into core_mediaitem (the single bill pool)
+          const { error } = await supabaseAdmin.from('core_mediaitem').upsert({
+            media_type: 'bill',
+            bill_id: externalId,
+            bill_number: (bill.bill_number || '').slice(0, 30),
+            title: title.slice(0, 1000) || 'Untitled',
+            bill_sponsor_name: primarySponsor?.name || '',
+            bill_sponsor_party: primarySponsor?.party || '',
+            bill_sponsor_state: dsState || bill.state || '',
+            bill_sponsor_legiscan_id: primarySponsor?.people_id || null,
+            bill_level: 'state',
+            bill_state_code: dsState || bill.state || '',
+            bill_stage: (bill.status_desc || '').slice(0, 30),
+            source_date: bill.status_date || null,
+            bill_source: 'legiscan',
+            source_name: 'legiscan',
             is_fluff: isFluff,
-            fluff_reason: reason,
-            raw_text: rawText.slice(0, 3000) || null,
-          }, { onConflict: 'external_id' });
+            fluff_reason: reason || '',
+            content_text: rawText.slice(0, 3000) || '',
+            legisswipe_uuid: crypto.randomUUID(),
+            // Defaults for required fields
+            description: '',
+            summary: '',
+            summary_liberal: '',
+            summary_conservative: '',
+            impact_line: '',
+            impact_line_liberal: '',
+            impact_line_conservative: '',
+            review_notes: '',
+            bill_committee: '',
+            bill_chamber: '',
+            bill_actions: '',
+            external_url: '',
+            source_url: '',
+            verdict: 'unrated',
+            status: 'pending',
+            pin_order: 0,
+            bill_active: true,
+            is_summarized: false,
+            is_hot: false,
+            hot_score: 0,
+          }, { onConflict: 'bill_id' });
 
           if (!error) billsFromDataset++;
         } catch {
