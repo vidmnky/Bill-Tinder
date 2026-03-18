@@ -1,0 +1,7 @@
+Run this in Supabase SQL Editor, then delete this file:
+
+ALTER TABLE bills ADD COLUMN impact_line_liberal TEXT;
+ALTER TABLE bills ADD COLUMN impact_line_conservative TEXT;
+
+After that, run the backfill:
+cd ~/Desktop/Bill-Tinder && node scripts/backfill_impact.js --limit 50
