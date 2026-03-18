@@ -12,6 +12,8 @@ CREATE TABLE bills (
   summary_liberal TEXT,                     -- Progressive-lens summary
   summary_conservative TEXT,                -- Conservative-lens summary
   impact_line TEXT,                         -- One sentence: what this bill does to you personally
+  impact_line_liberal TEXT,                 -- Progressive-lens impact line
+  impact_line_conservative TEXT,            -- Conservative-lens impact line
   sponsor_name TEXT,
   sponsor_party TEXT,                        -- R, D, I, L, etc.
   sponsor_state TEXT,                       -- 2-letter state code

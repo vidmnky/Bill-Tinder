@@ -51,6 +51,12 @@ export async function GET(request) {
       const impact = await summarizeBill(bill.title, bill.raw_text, 'impact');
       await new Promise(r => setTimeout(r, DELAY_MS));
 
+      const impactLib = await summarizeBill(bill.title, bill.raw_text, 'impact_liberal');
+      await new Promise(r => setTimeout(r, DELAY_MS));
+
+      const impactCon = await summarizeBill(bill.title, bill.raw_text, 'impact_conservative');
+      await new Promise(r => setTimeout(r, DELAY_MS));
+
       if (balanced) {
         const { error: updateErr } = await supabaseAdmin
           .from('bills')
@@ -59,6 +65,8 @@ export async function GET(request) {
             summary_liberal: liberal || null,
             summary_conservative: conservative || null,
             impact_line: impact || null,
+            impact_line_liberal: impactLib || null,
+            impact_line_conservative: impactCon || null,
             is_summarized: true,
           })
           .eq('id', bill.id);

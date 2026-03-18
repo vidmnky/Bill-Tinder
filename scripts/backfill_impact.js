@@ -31,15 +31,33 @@ Rules:
 - No jargon, no bill numbers, no hedging. Just the impact.
 - If the bill is too procedural or narrow to affect regular people, write "Affects government operations, not daily life."`;
 
+const IMPACT_LIBERAL_PROMPT = `Write ONE sentence summarizing what a progressive would want you to know about this bill's real-world impact. Be factual but emphasize what liberals care about: who loses protections, who gets left behind, what rights are at stake, what qualified professionals are being replaced with unqualified alternatives, what public resources are being cut or privatized.
+
+Rules:
+- One sentence only. Under 30 words.
+- Use "you" or "your" — make it personal.
+- Be specific and concrete — name the real tradeoff (e.g. "licensed counselor replaced by unlicensed chaplain").
+- No rallying cries, no hyperbole. Just the fact that hurts.
+- If the bill is too procedural to matter, write "Affects government operations, not daily life."`;
+
+const IMPACT_CONSERVATIVE_PROMPT = `Write ONE sentence summarizing what a conservative would want you to know about this bill's real-world impact. Be factual but emphasize what conservatives care about: cost to taxpayers, government overreach, new regulations on businesses, threats to religious liberty or parental rights, expansion of government programs.
+
+Rules:
+- One sentence only. Under 30 words.
+- Use "you" or "your" — make it personal.
+- Be specific and concrete — name the real tradeoff (e.g. "adds $2B in new spending" or "gives parents more choice").
+- No rallying cries, no hyperbole. Just the fact that matters.
+- If the bill is too procedural to matter, write "Affects government operations, not daily life."`;
+
 const DELAY_MS = 350; // Stay well under Groq rate limits
 
-async function generateImpact(title, rawText, summary) {
+async function generateImpactWithPrompt(prompt, title, rawText, summary) {
   const userContent = `Bill Title: ${title}\n\nSummary: ${summary || '(none)'}\n\nBill Text (excerpt):\n${rawText || '(No text available)'}`;
   try {
     const completion = await groq.chat.completions.create({
       model: 'llama-3.1-8b-instant',
       messages: [
-        { role: 'system', content: IMPACT_PROMPT },
+        { role: 'system', content: prompt },
         { role: 'user', content: userContent },
       ],
       temperature: 0.3,
@@ -54,7 +72,7 @@ async function generateImpact(title, rawText, summary) {
         const completion = await groq.chat.completions.create({
           model: 'llama-3.1-8b-instant',
           messages: [
-            { role: 'system', content: IMPACT_PROMPT },
+            { role: 'system', content: prompt },
             { role: 'user', content: userContent },
           ],
           temperature: 0.3,
@@ -74,10 +92,10 @@ async function getAllBills(limit) {
   const pageSize = 1000;
   while (true) {
     const { data, error } = await sb.from('bills')
-      .select('id, title, raw_text, summary')
+      .select('id, title, raw_text, summary, impact_line, impact_line_liberal, impact_line_conservative')
       .eq('is_summarized', true)
       .eq('is_fluff', false)
-      .is('impact_line', null)
+      .or('impact_line.is.null,impact_line_liberal.is.null,impact_line_conservative.is.null')
       .range(offset, offset + pageSize - 1);
     if (error) { console.log('Query error:', error.message); break; }
     if (!data || data.length === 0) break;
@@ -102,11 +120,32 @@ async function getAllBills(limit) {
 
   for (let i = 0; i < bills.length; i++) {
     const bill = bills[i];
-    const impact = await generateImpact(bill.title, bill.raw_text, bill.summary);
+    const update = {};
 
-    if (impact) {
+    // Generate neutral impact if missing
+    if (!bill.impact_line) {
+      const impact = await generateImpactWithPrompt(IMPACT_PROMPT, bill.title, bill.raw_text, bill.summary);
+      if (impact) update.impact_line = impact;
+      await new Promise(r => setTimeout(r, DELAY_MS));
+    }
+
+    // Generate liberal impact if missing
+    if (!bill.impact_line_liberal) {
+      const impactLib = await generateImpactWithPrompt(IMPACT_LIBERAL_PROMPT, bill.title, bill.raw_text, bill.summary);
+      if (impactLib) update.impact_line_liberal = impactLib;
+      await new Promise(r => setTimeout(r, DELAY_MS));
+    }
+
+    // Generate conservative impact if missing
+    if (!bill.impact_line_conservative) {
+      const impactCon = await generateImpactWithPrompt(IMPACT_CONSERVATIVE_PROMPT, bill.title, bill.raw_text, bill.summary);
+      if (impactCon) update.impact_line_conservative = impactCon;
+      await new Promise(r => setTimeout(r, DELAY_MS));
+    }
+
+    if (Object.keys(update).length > 0) {
       const { error } = await sb.from('bills')
-        .update({ impact_line: impact })
+        .update(update)
         .eq('id', bill.id);
       if (!error) done++;
       else failed++;
@@ -117,8 +156,6 @@ async function getAllBills(limit) {
     if ((i + 1) % 100 === 0 || i === bills.length - 1) {
       console.log(`${i + 1}/${bills.length}  done:${done} failed:${failed}`);
     }
-
-    await new Promise(r => setTimeout(r, DELAY_MS));
   }
 
   console.log(`\nDone. Generated: ${done}  Failed: ${failed}`);

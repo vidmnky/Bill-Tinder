@@ -34,9 +34,15 @@ export default function BillCard({ bill, side, mode = 'balanced', isWinner, isLo
       )}
 
       {/* Impact line */}
-      {bill.impact_line && (
-        <p style={styles.summary}>{bill.impact_line}</p>
-      )}
+      {(() => {
+        const impactMap = {
+          balanced: bill.impact_line,
+          liberal: bill.impact_line_liberal || bill.impact_line,
+          conservative: bill.impact_line_conservative || bill.impact_line,
+        };
+        const displayImpact = impactMap[mode] || bill.impact_line;
+        return displayImpact ? <p style={styles.summary}>{displayImpact}</p> : null;
+      })()}
 
       {/* Sponsor + State + Status */}
       <div style={styles.meta}>
