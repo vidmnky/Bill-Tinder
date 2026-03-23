@@ -56,7 +56,7 @@ export default function BillCard({ bill, side, mode = 'balanced', isWinner, isLo
           <p style={styles.sponsor}>
             {bill.sponsor_name}
             {bill.sponsor_party ? ` (${bill.sponsor_party})` : ''}
-            {bill.sponsor_state ? ` · ${bill.sponsor_state}` : ''}
+            {bill.level === 'federal' && bill.sponsor_state ? ` · ${bill.sponsor_state}` : ''}
           </p>
         )}
         {bill.status && (
