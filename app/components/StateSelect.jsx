@@ -142,12 +142,10 @@ export default function StateSelect({ onSelect, onChange }) {
 
 const styles = {
   container: {
-    flex: 1,
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    justifyContent: 'center',
-    padding: 32,
+    padding: '48px 32px 24px',
     gap: 20,
   },
   logo: {
