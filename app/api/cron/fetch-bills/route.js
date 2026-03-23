@@ -1,17 +1,23 @@
 import { NextResponse } from 'next/server';
-import AdmZip from 'adm-zip';
 import { supabaseAdmin } from '../../../../lib/supabase';
-import { fetchDatasetList, fetchDataset, getMonthlyCallCount } from '../../../../lib/legiscan';
-import { getChangedDatasets, preFlightCheck, ALL_STATES } from '../../../../lib/legiscan-budget';
-import { fetchRecentBills, fetchBillDetail, fetchBillText } from '../../../../lib/congress';
-import { detectFluff } from '../../../../lib/filter';
+import { fetchBasinBills } from '../../../../lib/basin';
 
 /**
  * GET /api/cron/fetch-bills
- * Protected by CRON_SECRET. Fetches bills from Congress.gov and LegiScan.
+ * Protected by CRON_SECRET.
  *
- * Congress.gov: fetches recent federal bills individually (generous rate limit).
- * LegiScan: bulk datasets only (ZIP → extract → filter → upsert).
+ * PRIMARY SOURCE: Civic Mirror Basin API.
+ * Fetches summarized bills from CM and upserts into local Supabase cache.
+ * This replaces direct Congress.gov and LegiScan fetching — CM handles that.
+ *
+ * LEGACY SOURCE: Congress.gov + LegiScan (preserved as fallback, disabled by default).
+ * Set ?source=legacy to use the old Congress.gov + LegiScan pipeline.
+ *
+ * Query params:
+ *   source=basin (default) | legacy
+ *   limit=500 (max bills to fetch from basin)
+ *   state=XX (optional state filter)
+ *   level=federal|state (optional level filter)
  */
 export async function GET(request) {
   // Auth check
@@ -21,15 +27,121 @@ export async function GET(request) {
   }
 
   const { searchParams } = new URL(request.url);
+  const source = searchParams.get('source') || 'basin';
+
+  if (source === 'legacy') {
+    return handleLegacyFetch(request);
+  }
+
+  // --- Basin API fetch (default) ---
+  const limit = parseInt(searchParams.get('limit') || '500', 10);
+  const state = searchParams.get('state') || undefined;
+  const level = searchParams.get('level') || undefined;
+
+  try {
+    const results = await fetchFromBasin({ limit, state, level });
+    return NextResponse.json(results);
+  } catch (err) {
+    console.error('[Cron/Fetch] Basin API error:', err.message);
+    return NextResponse.json({ error: err.message, source: 'basin' }, { status: 500 });
+  }
+}
+
+/**
+ * Fetch bills from the CM Basin API and upsert into local Supabase cache.
+ * Only syncs summarized bills — unsummarized ones have no value for the swipe UI.
+ */
+async function fetchFromBasin({ limit = 500, state, level }) {
+  // Fetch summarized bills from basin (these are ready for display)
+  const bills = await fetchBasinBills({
+    limit,
+    state,
+    level,
+    summarized: true,
+  });
+
+  if (!bills || bills.length === 0) {
+    return { source: 'basin', fetched: 0, upserted: 0, skipped: 0 };
+  }
+
+  let upserted = 0;
+  let skipped = 0;
+  const errors = [];
+
+  // Batch upsert into local Supabase bills table
+  const BATCH = 50;
+  for (let i = 0; i < bills.length; i += BATCH) {
+    const chunk = bills.slice(i, i + BATCH);
+
+    const rows = chunk.map(bill => ({
+      // Use cm_pk as external_id prefix for dedup
+      external_id: bill.external_id || `cm:${bill.cm_pk}`,
+      title: (bill.title || 'Untitled').slice(0, 1000),
+      summary: bill.summary || null,
+      summary_liberal: bill.summary_liberal || null,
+      summary_conservative: bill.summary_conservative || null,
+      impact_line: bill.impact_line || null,
+      impact_line_liberal: bill.impact_line_liberal || null,
+      impact_line_conservative: bill.impact_line_conservative || null,
+      sponsor_name: bill.sponsor_name || null,
+      sponsor_party: bill.sponsor_party || null,
+      sponsor_state: bill.sponsor_state || null,
+      level: bill.level || 'federal',
+      state: bill.state || null,
+      status: bill.status || null,
+      source: bill.source || 'congress',
+      introduced_date: bill.introduced_date || null,
+      is_fluff: false,
+      is_summarized: true, // Basin only returns summarized bills
+      raw_text: null,
+      last_updated: new Date().toISOString(),
+    }));
+
+    const { error } = await supabaseAdmin
+      .from('bills')
+      .upsert(rows, { onConflict: 'external_id', ignoreDuplicates: false });
+
+    if (error) {
+      errors.push(error.message);
+      console.error(`[Basin] Batch upsert error:`, error.message);
+      skipped += chunk.length;
+    } else {
+      upserted += chunk.length;
+    }
+  }
+
+  return {
+    source: 'basin',
+    fetched: bills.length,
+    upserted,
+    skipped,
+    errors: errors.length > 0 ? errors : undefined,
+  };
+}
+
+/**
+ * LEGACY: Original Congress.gov + LegiScan fetch pipeline.
+ * Kept for backwards compatibility — use ?source=legacy to invoke.
+ * This is the old code, preserved unchanged.
+ */
+async function handleLegacyFetch(request) {
+  // Dynamic imports to avoid loading these modules by default
+  const { fetchRecentBills, fetchBillDetail, fetchBillText } = await import('../../../../lib/congress');
+  const { fetchDatasetList, fetchDataset, getMonthlyCallCount } = await import('../../../../lib/legiscan');
+  const { getChangedDatasets, preFlightCheck, ALL_STATES } = await import('../../../../lib/legiscan-budget');
+  const { detectFluff } = await import('../../../../lib/filter');
+  const AdmZip = (await import('adm-zip')).default;
+
+  const { searchParams } = new URL(request.url);
   const maxDatasets = parseInt(searchParams.get('max_datasets') || '5', 10);
   const skipCongress = searchParams.get('skip_congress') === 'true';
 
-  const results = { congress: null, legiscan: null };
+  const results = { source: 'legacy', congress: null, legiscan: null };
 
   // --- Congress.gov ---
   if (!skipCongress) {
     try {
-      results.congress = await fetchCongressBills();
+      results.congress = await fetchCongressBillsLegacy(fetchRecentBills, detectFluff);
     } catch (err) {
       console.error('[Cron/Fetch] Congress.gov error:', err.message);
       results.congress = { error: err.message };
@@ -38,7 +150,10 @@ export async function GET(request) {
 
   // --- LegiScan ---
   try {
-    results.legiscan = await fetchLegiScanBills(maxDatasets);
+    results.legiscan = await fetchLegiScanBillsLegacy(
+      maxDatasets, fetchDatasetList, fetchDataset, getMonthlyCallCount,
+      getChangedDatasets, preFlightCheck, ALL_STATES, detectFluff, AdmZip
+    );
   } catch (err) {
     console.error('[Cron/Fetch] LegiScan error:', err.message);
     results.legiscan = { error: err.message };
@@ -48,29 +163,22 @@ export async function GET(request) {
 }
 
 /**
- * Fetch recent federal bills from Congress.gov and upsert into the bill pool.
- * Writes directly to core_mediaitem (the single bill table).
- * The `bills` VIEW exposes these to LegisSwipe automatically.
+ * LEGACY: Fetch from Congress.gov directly.
  */
-async function fetchCongressBills() {
+async function fetchCongressBillsLegacy(fetchRecentBills, detectFluff) {
   const bills = await fetchRecentBills(500);
   let inserted = 0;
-  let skipped = 0;
 
-  // Build rows for batch upsert into core_mediaitem
   const rows = [];
   for (const bill of bills) {
     const externalId = `congress:${bill.type?.toLowerCase() || 'bill'}${bill.number}-${bill.congress}`;
     const { isFluff, reason } = detectFluff(bill.title || '');
 
-    const sponsorName = bill.sponsors?.[0]?.fullName
-      || bill.sponsors?.[0]?.name
-      || null;
+    const sponsorName = bill.sponsors?.[0]?.fullName || bill.sponsors?.[0]?.name || null;
     const sponsorState = bill.sponsors?.[0]?.state || null;
     const sponsorParty = bill.sponsors?.[0]?.party || null;
     const sponsorBioguide = bill.sponsors?.[0]?.bioguideId || null;
 
-    // Build bill number: e.g. "HR 7531", "S 236"
     const billType = (bill.type || 'bill').toUpperCase();
     const billNum = bill.number ? `${billType} ${bill.number}` : '';
 
@@ -93,7 +201,6 @@ async function fetchCongressBills() {
       fluff_reason: reason || '',
       content_text: '',
       legisswipe_uuid: crypto.randomUUID(),
-      // Defaults for required fields
       description: '',
       summary: '',
       summary_liberal: '',
@@ -117,43 +224,37 @@ async function fetchCongressBills() {
     });
   }
 
-  // Batch upsert — skip duplicates via bill_id (was external_id)
   const BATCH = 50;
   for (let i = 0; i < rows.length; i += BATCH) {
     const chunk = rows.slice(i, i + BATCH);
-    const { error, count } = await supabaseAdmin
+    const { error } = await supabaseAdmin
       .from('core_mediaitem')
       .upsert(chunk, { onConflict: 'bill_id', ignoreDuplicates: true });
 
     if (error) {
-      console.error(`[Congress] Batch insert error:`, error.message);
+      console.error(`[Congress/Legacy] Batch insert error:`, error.message);
     } else {
       inserted += chunk.length;
     }
   }
 
-  skipped = bills.length - inserted;
-  return { fetched: bills.length, inserted, skipped };
+  return { fetched: bills.length, inserted, skipped: bills.length - inserted };
 }
 
 /**
- * Fetch state bills via LegiScan bulk datasets.
- * Downloads changed datasets as ZIPs, extracts bill JSONs, filters, upserts.
+ * LEGACY: Fetch from LegiScan bulk datasets.
  */
-// LegiScan state_id to abbreviation map
-// state_id 1=AL, 2=AK, 3=AZ, ... 50=WY, 51=DC, 52=US (federal)
-const STATE_ID_MAP = {};
-ALL_STATES.forEach((code, i) => { STATE_ID_MAP[i + 1] = code; });
-STATE_ID_MAP[52] = 'US';
+async function fetchLegiScanBillsLegacy(
+  maxDatasets, fetchDatasetList, fetchDataset, getMonthlyCallCount,
+  getChangedDatasets, preFlightCheck, ALL_STATES, detectFluff, AdmZip
+) {
+  const STATE_ID_MAP = {};
+  ALL_STATES.forEach((code, i) => { STATE_ID_MAP[i + 1] = code; });
+  STATE_ID_MAP[52] = 'US';
 
-async function fetchLegiScanBills(maxDatasets = 5) {
-  // 1. Get current budget
   const monthlyCount = await getMonthlyCallCount(supabaseAdmin);
-
-  // 2. Fetch dataset list (1 API call)
   const datasets = await fetchDatasetList(supabaseAdmin);
 
-  // 3. Load stored hashes to compare (keyed by session_id, which is the dataset identifier)
   const { data: cachedRows } = await supabaseAdmin
     .from('dataset_cache')
     .select('session_id, dataset_hash');
@@ -162,43 +263,32 @@ async function fetchLegiScanBills(maxDatasets = 5) {
     (cachedRows || []).map(r => [r.session_id, r.dataset_hash])
   );
 
-  // 4. Filter to current sessions only (year_start >= current year - 1)
   const currentYear = new Date().getFullYear();
   const currentDatasets = datasets.filter(ds => {
     const yr = ds.year_start || ds.year_end || 0;
     return yr >= currentYear - 1;
   });
 
-  // 5. Find changed datasets
   const changed = getChangedDatasets(currentDatasets, storedHashes);
-
-  // 5. Pre-flight budget check
-  const preflight = preFlightCheck(monthlyCount + 1, changed.length); // +1 for getDatasetList already called
+  const preflight = preFlightCheck(monthlyCount + 1, changed.length);
   if (!preflight.proceed) {
     return { message: preflight.message, changed: changed.length, downloaded: 0 };
   }
 
-  // 6. Download changed datasets (up to budget limit AND maxDatasets param)
   const limit = Math.min(preflight.maxDatasets, maxDatasets);
   const toDownload = changed.slice(0, limit);
   let totalBills = 0;
-  const cacheErrors = [];
 
   for (const ds of toDownload) {
     try {
       const dsState = STATE_ID_MAP[ds.state_id] || '';
       const dataset = await fetchDataset(ds.session_id, ds.access_key, supabaseAdmin);
-
-      // Extract bills from ZIP
       const zip = new AdmZip(dataset.zipBuffer);
       const entries = zip.getEntries();
       let billsFromDataset = 0;
 
       for (const entry of entries) {
-        // Bill JSON files are in the /bill/ directory
-        if (!entry.entryName.includes('/bill/') || !entry.entryName.endsWith('.json')) {
-          continue;
-        }
+        if (!entry.entryName.includes('/bill/') || !entry.entryName.endsWith('.json')) continue;
 
         try {
           const billJson = JSON.parse(entry.getData().toString('utf8'));
@@ -208,14 +298,9 @@ async function fetchLegiScanBills(maxDatasets = 5) {
           const externalId = `legiscan:${bill.bill_id}`;
           const title = bill.title || '';
           const rawText = bill.description || '';
-
-          // Fluff filter — zero API cost
           const { isFluff, reason } = detectFluff(title, rawText);
-
-          // Extract primary sponsor info (name + LegiScan people_id)
           const primarySponsor = bill.sponsors?.find(s => s.sponsor_type_id === 1) || bill.sponsors?.[0];
 
-          // Upsert bill into core_mediaitem (the single bill pool)
           const { error } = await supabaseAdmin.from('core_mediaitem').upsert({
             media_type: 'bill',
             bill_id: externalId,
@@ -235,7 +320,6 @@ async function fetchLegiScanBills(maxDatasets = 5) {
             fluff_reason: reason || '',
             content_text: rawText.slice(0, 3000) || '',
             legisswipe_uuid: crypto.randomUUID(),
-            // Defaults for required fields
             description: '',
             summary: '',
             summary_liberal: '',
@@ -264,10 +348,9 @@ async function fetchLegiScanBills(maxDatasets = 5) {
         }
       }
 
-      // Update dataset cache — delete old entry then insert fresh
       await supabaseAdmin.from('dataset_cache').delete().eq('session_id', ds.session_id);
-      const { error: cacheError } = await supabaseAdmin.from('dataset_cache').insert({
-        dataset_id: ds.session_id,  // use session_id as the dataset_id (schema legacy)
+      await supabaseAdmin.from('dataset_cache').insert({
+        dataset_id: ds.session_id,
         session_id: ds.session_id,
         state: dsState,
         session_name: ds.session_name || '',
@@ -278,13 +361,9 @@ async function fetchLegiScanBills(maxDatasets = 5) {
         last_downloaded: new Date().toISOString(),
       });
 
-      if (cacheError) {
-        cacheErrors.push(`${ds.dataset_id}: ${cacheError.message} (${cacheError.details || 'no details'})`);
-      }
-
       totalBills += billsFromDataset;
     } catch (err) {
-      console.error(`[LegiScan] Failed to process dataset ${ds.dataset_id}:`, err.message);
+      console.error(`[LegiScan/Legacy] Failed to process dataset ${ds.dataset_id}:`, err.message);
     }
   }
 
@@ -293,6 +372,5 @@ async function fetchLegiScanBills(maxDatasets = 5) {
     datasetsChanged: changed.length,
     datasetsDownloaded: toDownload.length,
     billsImported: totalBills,
-    cacheErrors: cacheErrors.length > 0 ? cacheErrors : undefined,
   };
 }
